@@ -1,0 +1,105 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: | 
+  Kittens Carousel is a static website application deployed on AWS Simple Storage Service (S3), served through Cloudfront and Route 53 using AWS Cloudformation Service.
+
+Parameters:
+  DomainName:
+    Type: String
+    Default: "tahabozoyukaws.click"
+    Description: "Full domain name for the web application"
+  ExistingCertificateArn:
+    Type: String
+    Description: "ARN of the existing ACM certificate"
+
+Resources:
+  MyS3Bucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref DomainName
+      WebsiteConfiguration:
+        IndexDocument: "index.html"
+      # Remove AccessControl to avoid setting ACLs:
+      # AccessControl: PublicRead
+
+  MyS3Uploader:
+    Type: AWS::CloudFormation::CustomResource
+    Properties:
+      ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${MyS3UploaderFunction}
+      BucketName: !Ref MyS3Bucket
+      LocalFilesPath: /Users/tahabozoyuk/Desktop/clarusway-aws-devops-tr-16/aws/projects/Project-006-kittens-carousel-static-web-s3-cf/static-web
+
+  MyS3UploaderFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Handler: index.handler
+      Runtime: python3.8
+      Code:
+        ZipFile: |
+          import boto3
+
+          def handler(event, context):
+            # ... (function code remains the same)
+
+      Role: !GetAtt MyS3UploaderRole.Arn
+
+  MyS3UploaderRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: S3UploaderPolicy
+          PolicyDocument:
+            Version: 2012-10-17
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                Resource:
+                  - !Join ["", ["arn:aws:s3:::", !Ref MyS3Bucket, "/*"]]
+
+  MyCloudFrontDistribution:
+    Type: AWS::CloudFront::Distribution
+    Properties:
+      DistributionConfig:
+        Enabled: true
+        Aliases:
+          - !Ref DomainName
+        Origins:
+          - DomainName: !GetAtt MyS3Bucket.DomainName
+            Id: S3Origin
+            S3OriginConfig:
+              OriginAccessIdentity: ""
+        DefaultRootObject: "index.html"
+        DefaultCacheBehavior:
+          TargetOriginId: S3Origin
+          ViewerProtocolPolicy: "redirect-to-https"
+          AllowedMethods:
+            - "GET"
+            - "HEAD"
+          CachedMethods:
+            - "GET"
+            - "HEAD"
+          ForwardedValues:
+            QueryString: true
+        ViewerCertificate:
+          AcmCertificateArn: !Ref ExistingCertificateArn
+          SslSupportMethod: "sni-only"
+        HttpVersion: "http2"
+
+  MyRoute53:
+    Type: AWS::Route53::RecordSetGroup
+    Properties:
+      HostedZoneId: Z03988261BFKV06K8YBLK
+      RecordSets: 
+      - AliasTarget: 
+          DNSName: !GetAtt MyCloudFrontDistribution.DomainName
+          HostedZoneId: Z2FDTNDATAQYW2
+        Name: !Ref DomainName
+        Type: A
