@@ -51,7 +51,7 @@ Resources:
             - HEAD
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
           Compress: true
-          TargetOriginId: osvaldocfrnt
+          TargetOriginId: tahacfrnt
           ViewerProtocolPolicy: allow-all
         DefaultRootObject: index.html
         Enabled: true
@@ -60,7 +60,7 @@ Resources:
           - CustomOriginConfig: 
               OriginProtocolPolicy: http-only #reqiured
             DomainName:  !Select [2, !Split ["/", !GetAtt MyS3Bucket.WebsiteURL]] #reqiured
-            Id: osvaldocfrnt #reqiured
+            Id: tahacfrnt #reqiured
         PriceClass: PriceClass_All
         ViewerCertificate:
           AcmCertificateArn: arn:aws:acm:us-east-1:145569166526:certificate/2fcfac3f-7c88-40f5-b49f-3a96519d9b92
