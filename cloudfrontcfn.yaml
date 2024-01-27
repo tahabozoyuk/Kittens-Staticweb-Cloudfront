@@ -1,105 +1,91 @@
 AWSTemplateFormatVersion: 2010-09-09
-
-Description: | 
-  Kittens Carousel is a static website application deployed on AWS Simple Storage Service (S3), served through Cloudfront and Route 53 using AWS Cloudformation Service.
-
+Description: |
+  This cfn file is used for creating a template which runs S3 static 
+  web-hosting using cloudfront distribution.
 Parameters:
-  DomainName:
+  KittensSubdomainName:
+    Description: full q. domain name like ottokitten.clarusway.us
     Type: String
-    Default: "tahabozoyukaws.click"
-    Description: "Full domain name for the web application"
-  ExistingCertificateArn:
-    Type: String
-    Description: "ARN of the existing ACM certificate"
+    AllowedPattern: (?!-)[a-zA-Z0-9-.]{1,63}(?<!-)
 
 Resources:
   MyS3Bucket:
     Type: AWS::S3::Bucket
     Properties:
-      BucketName: !Ref DomainName
+      BucketName: !Ref KittensSubdomainName
+      OwnershipControls:
+        Rules:
+          - ObjectOwnership: BucketOwnerEnforced
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: FALSE
       WebsiteConfiguration:
-        IndexDocument: "index.html"
-      # Remove AccessControl to avoid setting ACLs:
-      # AccessControl: PublicRead
+        IndexDocument: index.html
 
-  MyS3Uploader:
-    Type: AWS::CloudFormation::CustomResource
+  MyS3BucketPolicy:
+    Type: AWS::S3::BucketPolicy
     Properties:
-      ServiceToken: !Sub arn:aws:lambda:${AWS::Region}:${AWS::AccountId}:function:${MyS3UploaderFunction}
-      BucketName: !Ref MyS3Bucket
-      LocalFilesPath: /Users/tahabozoyuk/Desktop/clarusway-aws-devops-tr-16/aws/projects/Project-006-kittens-carousel-static-web-s3-cf/static-web
-
-  MyS3UploaderFunction:
-    Type: AWS::Lambda::Function
-    Properties:
-      Handler: index.handler
-      Runtime: python3.8
-      Code:
-        ZipFile: |
-          import boto3
-
-          def handler(event, context):
-            # ... (function code remains the same)
-
-      Role: !GetAtt MyS3UploaderRole.Arn
-
-  MyS3UploaderRole:
-    Type: AWS::IAM::Role
-    Properties:
-      AssumeRolePolicyDocument:
+      Bucket: !Ref MyS3Bucket # Required
+      PolicyDocument:
         Version: 2012-10-17
         Statement:
-          - Effect: Allow
-            Principal:
-              Service: lambda.amazonaws.com
-            Action: sts:AssumeRole
-      Policies:
-        - PolicyName: S3UploaderPolicy
-          PolicyDocument:
-            Version: 2012-10-17
-            Statement:
-              - Effect: Allow
-                Action:
-                  - s3:PutObject
-                Resource:
-                  - !Join ["", ["arn:aws:s3:::", !Ref MyS3Bucket, "/*"]]
+          - Action:
+              - 's3:GetObject'
+            Effect: Allow
+            Resource: !Join
+              - ''
+              - - 'arn:aws:s3:::'
+                - !Ref MyS3Bucket
+                - /*
+            Principal: '*'
 
-  MyCloudFrontDistribution:
+  MyCloudFront:
     Type: AWS::CloudFront::Distribution
     Properties:
       DistributionConfig:
-        Enabled: true
         Aliases:
-          - !Ref DomainName
-        Origins:
-          - DomainName: !GetAtt MyS3Bucket.DomainName
-            Id: S3Origin
-            S3OriginConfig:
-              OriginAccessIdentity: ""
-        DefaultRootObject: "index.html"
+          - !Ref KittensSubdomainName
+        Comment: my cfn clfrnt dist.
         DefaultCacheBehavior:
-          TargetOriginId: S3Origin
-          ViewerProtocolPolicy: "redirect-to-https"
-          AllowedMethods:
-            - "GET"
-            - "HEAD"
-          CachedMethods:
-            - "GET"
-            - "HEAD"
-          ForwardedValues:
-            QueryString: true
+          AllowedMethods: 
+            - GET
+            - HEAD
+          CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
+          Compress: true
+          TargetOriginId: tahacfrnt
+          ViewerProtocolPolicy: allow-all
+        DefaultRootObject: index.html
+        Enabled: true
+        HttpVersion: http2
+        Origins:
+          - CustomOriginConfig: 
+              OriginProtocolPolicy: http-only #reqiured
+            DomainName:  !Select [2, !Split ["/", !GetAtt MyS3Bucket.WebsiteURL]] #reqiured
+            Id: osvaldocfrnt #reqiured
+        PriceClass: PriceClass_All
         ViewerCertificate:
-          AcmCertificateArn: !Ref ExistingCertificateArn
-          SslSupportMethod: "sni-only"
-        HttpVersion: "http2"
+          AcmCertificateArn: arn:aws:acm:us-east-1:145569166526:certificate/2fcfac3f-7c88-40f5-b49f-3a96519d9b92
+          MinimumProtocolVersion: TLSv1.2_2021
+          SslSupportMethod: sni-only
+
 
   MyRoute53:
     Type: AWS::Route53::RecordSetGroup
     Properties:
-      HostedZoneId: Z03988261BFKV06K8YBLK
+      HostedZoneId: Z03988261BFKV06K8YBLK #reqiured
       RecordSets: 
       - AliasTarget: 
-          DNSName: !GetAtt MyCloudFrontDistribution.DomainName
-          HostedZoneId: Z2FDTNDATAQYW2
-        Name: !Ref DomainName
-        Type: A
+          DNSName: !GetAtt MyCloudFront.DomainName #reqiured
+          HostedZoneId: Z2FDTNDATAQYW2 #reqiured
+        Name: !Ref KittensSubdomainName #reqiured
+        Type: A #reqiured
+
+Outputs:
+  BucketName: 
+    Description: S3 Bucket URL for Kittens Website
+    Value: !GetAtt MyS3Bucket.WebsiteURL
+  CloudfrontEndpoint:
+    Description: Endpoint for Kittens Cloudfront
+    Value: !GetAtt MyCloudFront.DomainName
+  FullDomainName:
+    Description: Full Domain Name of my Application
+    Value: !Ref KittensSubdomainName
