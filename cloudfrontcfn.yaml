@@ -51,7 +51,7 @@ Resources:
             - HEAD
           CachePolicyId: 658327ea-f89d-4fab-a63d-7e88639e58f6
           Compress: true
-          TargetOriginId: tahacfrnt
+          TargetOriginId: osvaldocfrnt
           ViewerProtocolPolicy: allow-all
         DefaultRootObject: index.html
         Enabled: true
